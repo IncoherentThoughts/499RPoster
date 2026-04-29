@@ -1,0 +1,497 @@
+\documentclass[final]{beamer}
+
+% ====================
+% Packages
+% ====================
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[size=custom, width=122, height=91, scale=1.0]{beamerposter}
+\usetheme{gemini}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tikz}
+\usetikzlibrary{calc,shadows}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.14}
+\usepackage{anyfontsize}
+\usepackage{ragged2e}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage[most]{tcolorbox}
+
+% ====================
+% Colors
+% ====================
+
+\definecolor{accent}{RGB}{196,80,0}
+\definecolor{accentdark}{RGB}{139,50,0}
+\definecolor{textmain}{RGB}{26,18,16}
+\definecolor{textmid}{RGB}{74,58,44}
+\definecolor{textdim}{RGB}{138,122,108}
+\definecolor{panelborder}{RGB}{221,208,192}
+\definecolor{bgwarm}{RGB}{255,250,245}
+
+% ====================
+% Override gemini headline colors  (default: fg=lightgray bg=blue — invisible on light bg)
+% ====================
+
+\setbeamercolor{headline}{fg=textmain, bg=bgwarm}
+\setbeamercolor{headline title}{fg=textmain}
+\setbeamercolor{headline author}{fg=textmid}
+\setbeamercolor{headline institute}{fg=accent}
+\setbeamercolor{headline rule}{bg=accent}
+
+% ====================
+% Font overrides
+% ====================
+
+\setsansfont{Lato}[
+  UprightFont=*-Regular,
+  ItalicFont=*-Italic,
+  BoldFont=*-Medium,
+  BoldItalicFont=*-MediumItalic
+]
+
+% ====================
+% Figure caption helper
+% ====================
+
+\newcommand{\figcap}[1]{%
+  \vspace{3pt}%
+  {\centering\scriptsize\itshape\color{textdim}#1\par}%
+}
+
+% ====================
+% Research-question numbered circle
+% ====================
+
+\newcommand{\rqnum}[1]{%
+  \tikz[baseline=(n.base)]{%
+    \node[circle, fill=accent, text=white,
+          font=\scriptsize\bfseries\sffamily,
+          minimum size=1.4em, inner sep=0pt] (n) {#1};%
+  }%
+}
+
+% ====================
+% Section title
+% ====================
+
+\newcommand{\sectitle}[1]{%
+  {\usebeamerfont{block title}\color{accentdark}\MakeUppercase{#1}}%
+  \par\nointerlineskip\vspace{2pt}%
+  {\color{accent}\rule{\linewidth}{1.5pt}}%
+  \par\vspace{4pt}%
+}
+
+% ====================
+% Glassy panel
+% ====================
+
+\tcbset{
+  glassy/.style={
+    enhanced,
+    colback=bgwarm,
+    opacityback=0.72,
+    colframe=panelborder,
+    boxrule=0.5pt,
+    arc=4pt,
+    left=7pt, right=7pt, top=5pt, bottom=6pt,
+    drop shadow,
+    before upper={\color{textmain}\setlength{\parskip}{4pt}},
+  }
+}
+
+% ====================
+% Column widths
+% ====================
+
+\newlength{\sepwidth}
+\newlength{\leftcolwidth}
+\newlength{\midcolwidth}
+\newlength{\rightcolwidth}
+
+\setlength{\sepwidth}{0.016\paperwidth}
+\setlength{\leftcolwidth}{0.300\paperwidth}
+\setlength{\midcolwidth}{0.338\paperwidth}
+\setlength{\rightcolwidth}{0.294\paperwidth}
+
+\newcommand{\separatorcolumn}{\begin{column}{\sepwidth}\end{column}}
+
+% ====================
+% Background
+% ====================
+
+\setbeamertemplate{background}{%
+  \begin{tikzpicture}
+    \useasboundingbox (0,0) rectangle (\paperwidth,\paperheight);
+    \node[anchor=south west, inner sep=0] at (0,0)
+      {\includegraphics[width=\paperwidth,height=\paperheight]{background.jpg}};
+    \fill[bgwarm,opacity=0.84] (0,0) rectangle (\paperwidth,\paperheight);
+  \end{tikzpicture}%
+}
+
+% ====================
+% Compact Headline
+% (avoids tikzpicture width issues by using beamercolorbox for the stripe)
+% ====================
+
+\setbeamertemplate{headline}{%
+  % Top accent stripe — solid beamercolorbox, no tikzpicture
+  \begin{beamercolorbox}[wd=\paperwidth, ht=0.28cm, dp=0pt]{headline rule}%
+  \end{beamercolorbox}%
+  % Header body
+  \begin{beamercolorbox}[wd=\paperwidth, ht=6.2cm, dp=0.35cm]{headline}%
+    \hspace{1.6cm}%
+    % Left logos
+    \begin{minipage}[c][6.2cm][c]{5.5cm}
+      \centering
+      \includegraphics[height=4cm]{msulogo.png}
+    \end{minipage}%
+    \hfill
+    % Center title block
+    \begin{minipage}[c][6.2cm][c]{0.56\paperwidth}
+      \centering
+      {\usebeamerfont{headline title}\usebeamercolor[fg]{headline title}%
+       Active Solar Irradiance Observer \textcolor{accent}{(ASIO)}}\\[0.3ex]
+      {\fontsize{10}{13}\selectfont\color{textmid}%
+       Evan Williams $\cdot$ Sarah Pawlowski $\cdot$ Chris Entzel $\cdot$
+       Charles Kankelborg $\cdot$ Camrynn Wells $\cdot$ Caleb Pascual $\cdot$
+       Reed Lando $\cdot$ Jake Davis $\cdot$ Chase Bronson $\cdot$
+       Tyler Holliday $\cdot$ Emily Schwartz $\cdot$ Aidan Rasmussen $\cdot$
+       Connor Parrott $\cdot$ Larry Springer $\cdot$ Ian Garcia $\cdot$
+       Jacob Weber $\cdot$ Finnegan Davidson $\cdot$ Sophia Daly}\\[0.4ex]
+      {\fontsize{8.5}{10.5}\selectfont\color{accent}%
+       \addfontfeatures{LetterSpace=5}\MakeUppercase{%
+       Montana State University \,---\, Department of Physics
+       \,---\, Space Science \& Engineering Laboratory}}
+    \end{minipage}%
+    \hfill
+    % Right logos
+    \begin{minipage}[c][6.2cm][c]{8cm}
+      \centering
+      \includegraphics[height=3.8cm]{nasalogo.png}\hspace{4pt}%
+      \includegraphics[height=2.8cm]{muselogo.png}\hspace{4pt}%
+      \includegraphics[height=2.8cm]{asiologo.png}
+    \end{minipage}%
+    \hspace{1.6cm}%
+  \end{beamercolorbox}%
+  % Bottom accent rule
+  \begin{beamercolorbox}[wd=\paperwidth, ht=0pt, dp=3pt]{headline rule}%
+  \end{beamercolorbox}%
+}
+
+% Remove footer
+\setbeamertemplate{footline}{}
+
+% ====================
+% Document
+% ====================
+
+\begin{document}
+\begin{frame}[t]
+\vspace{0.4cm}
+\begin{columns}[t, totalwidth=\paperwidth]
+\separatorcolumn
+
+% ============================================================
+%  LEFT COLUMN
+% ============================================================
+\begin{column}{\leftcolwidth}
+
+% -- Introduction --
+\begin{tcolorbox}[glassy]
+\sectitle{Introduction}
+
+Solar flares are among the most energetic events in our solar system,
+releasing enormous quantities of energy across the electromagnetic
+spectrum in timescales ranging from milliseconds to hours. The underlying
+physical mechanisms --- particularly sub-second oscillatory phenomena
+known as \textbf{\textcolor{accentdark}{Quasi-Periodic Pulsations (QPPs)}}
+--- remain poorly understood because existing solar monitors lack the
+temporal resolution and multi-band simultaneity needed to resolve them.
+
+QPPs have been detected in microwave, hard X-ray, and EUV emissions,
+but the temporal relationships \textit{between} these bands at sub-second
+cadence are largely unconstrained. The spatial dynamics of the soft X-ray
+source during a flare --- and the thermal evolution of the flare late
+phase on centi-second timescales --- are similarly unexplored
+observational frontiers.
+
+The \textbf{\textcolor{accentdark}{Active Solar Irradiance Observer (ASIO)}}
+is designed specifically to fill these gaps. Scheduled for launch in 2027
+aboard NASA's \textbf{\textcolor{accentdark}{MUSE (MUlti-slit Solar
+Explorer)}} spacecraft, ASIO delivers simultaneous high-cadence irradiance
+measurements in the SXR and HXR bands with integrated coarse source
+localization --- a capability not available in any existing solar instrument.
+\end{tcolorbox}
+
+\vspace{0.3cm}
+
+% -- Research Objectives --
+\begin{tcolorbox}[glassy]
+\sectitle{Research Objectives}
+
+\vspace{2pt}
+\noindent\rqnum{1}\hspace{5pt}%
+\begin{minipage}[t]{0.88\linewidth}
+  Do sub-second \textbf{\textcolor{accentdark}{Quasi-Periodic Pulsations
+  (QPPs)}} exist simultaneously across the SXR, HXR, and EUV energy
+  bands? Are there measurable temporal offsets between bands that reveal
+  the causal sequence of energy release?
+\end{minipage}
+
+\vspace{5pt}
+\noindent\rqnum{2}\hspace{5pt}%
+\begin{minipage}[t]{0.88\linewidth}
+  Are \textbf{\textcolor{accentdark}{soft X-ray sources}} during solar
+  flares spatially stationary, or do they exhibit rapid motion across the
+  solar disk? If dynamic, over what spatial extent and on what timescale?
+\end{minipage}
+
+\vspace{5pt}
+\noindent\rqnum{3}\hspace{5pt}%
+\begin{minipage}[t]{0.88\linewidth}
+  How does the \textbf{\textcolor{accentdark}{thermal structure}} of a
+  solar flare evolve during its late phase on centi-second timescales ---
+  and what temperature and emission measure trajectories emerge as the
+  plasma cools?
+\end{minipage}
+
+\vspace{7pt}
+\noindent
+\begin{minipage}[t]{0.49\linewidth}
+  \centering
+  \includegraphics[width=\linewidth, height=4.5cm,
+    keepaspectratio=false, clip]{slide2_img1.jpg}
+  \figcap{\textbf{Fig.~1.} EUV observation of a solar flare. Scale
+    markers indicate the source spans 50--190~Mm across the solar disk.}
+\end{minipage}\hfill%
+\begin{minipage}[t]{0.49\linewidth}
+  \centering
+  \includegraphics[width=\linewidth, height=4.5cm,
+    keepaspectratio]{slide2_img2.png}
+  \figcap{\textbf{Fig.~2.} QPP classification by period and duration
+    (Tan et al.\ 2010). ASIO targets the fast and slow VSP regimes at
+    sub-second cadence.}
+\end{minipage}
+\end{tcolorbox}
+
+\vspace{0.3cm}
+
+% -- References --
+\begin{tcolorbox}[glassy]
+\sectitle{References}
+\color{textmid}
+\scriptsize
+\begin{enumerate}[leftmargin=16pt, itemsep=3pt,
+    label={\textcolor{accent}{\bfseries\arabic*.}}]
+  \item Ning, H., Chen, Y., Wu, Z., Su, Y., Tian, H., Li, G., Du, G.,
+    \& Song, H. (2018). Two-stage energy release process of a confined
+    flare with double HXR peaks. \textit{The Astrophysical Journal},
+    \textit{854}(2), 178.
+  \item De~Pontieu, B., Cheung, M., \& MUSE team. (2022). The MUlti-slit
+    Solar Explorer (MUSE). \textit{Bulletin of the AAS}, \textit{54}(7).
+  \item Tan, B., Zhang, Y., Tan, C., \& Liu, Y. (2010). Microwave
+    quasi-periodic pulsations in multi-timescales associated with a
+    solar flare/CME event. \textit{The Astrophysical Journal},
+    \textit{723}(1), 25--39.
+\end{enumerate}
+\end{tcolorbox}
+
+\end{column}
+\separatorcolumn
+
+% ============================================================
+%  MIDDLE COLUMN
+% ============================================================
+\begin{column}{\midcolwidth}
+
+% -- The Instrument --
+\begin{tcolorbox}[glassy]
+\sectitle{The Instrument}
+
+ASIO is a compact photometer engineered as a hosted payload on the
+\textbf{\textcolor{accentdark}{NASA MUSE spacecraft}}, which will occupy
+a Sun-synchronous low Earth orbit at $\sim$667~km. The instrument leverages
+MUSE's spacecraft bus for power, thermal control, and telemetry while
+providing a high-cadence X-ray measurement channel fully independent of
+MUSE's primary UV spectrograph.
+
+The flight chassis is precision-machined from aluminum with multiple
+aperture channels, each coupling solar X-rays to dedicated solid-state
+photodiode detectors. A \textbf{\textcolor{accentdark}{shadow plate}}
+upstream of the SXR detector array provides coarse source localization
+without imaging optics --- differential shadow patterns across detector
+segments encode the angular position of the X-ray source on the solar
+disk. An adjustable mounting ring permits fine alignment of the instrument
+axis after spacecraft integration.
+
+\vspace{5pt}
+\noindent
+\begin{minipage}[t]{0.535\linewidth}
+  \centering
+  \includegraphics[width=\linewidth, height=4.8cm,
+    keepaspectratio=false, clip]{slide3_img3.jpg}
+  \figcap{\textbf{Fig.~3.} ASIO flight instrument --- precision-machined
+    aluminum housing with multiple X-ray aperture channels and solid-state
+    photodiode detectors.}
+\end{minipage}\hfill%
+\begin{minipage}[t]{0.445\linewidth}
+  \centering
+  \includegraphics[width=\linewidth, height=4.8cm,
+    keepaspectratio]{slide3_img4.png}
+  \figcap{\textbf{Fig.~4.} MUSE spacecraft CAD rendering. ASIO flies as a
+    hosted payload on the main bus, launching in~2027.}
+\end{minipage}
+
+\vspace{5pt}
+\noindent
+\begin{minipage}[t]{0.49\linewidth}
+  \centering
+  \includegraphics[width=\linewidth, height=4cm,
+    keepaspectratio]{slide3_img5.png}
+  \figcap{\textbf{Fig.~5.} ASIO structural CAD model showing aperture
+    geometry and detector mounting.}
+\end{minipage}\hfill%
+\begin{minipage}[t]{0.49\linewidth}
+  \centering
+  \includegraphics[width=\linewidth, height=4cm,
+    keepaspectratio]{slide3_img6.png}
+  \figcap{\textbf{Fig.~6.} Adjustable positioning ring enabling precise
+    instrument alignment after spacecraft integration.}
+\end{minipage}
+\end{tcolorbox}
+
+\vspace{0.3cm}
+
+% -- Alignment Procedure --
+\begin{tcolorbox}[glassy]
+\sectitle{Alignment Procedure}
+
+\noindent
+\begin{minipage}[t]{0.62\linewidth}
+  The shadow plate upstream of the SXR photodiode array encodes the
+  angular position of a solar X-ray source as a differential shadow
+  pattern. Comparing flux ratios between detector segments yields a
+  coarse source centroid without imaging optics.
+  Post-integration alignment is characterised with an automated
+  edge-detection pipeline: exterior and interior aperture corners are
+  located to sub-pixel accuracy, compared against the optical model,
+  and the adjustable ring is locked once verified.
+\end{minipage}\hfill%
+\begin{minipage}[t]{0.35\linewidth}
+  \centering
+  \includegraphics[width=\linewidth, height=4.8cm,
+    keepaspectratio]{slide5_img10.png}
+  \figcap{\textbf{Fig.~7.} Edge-detection alignment output.}
+\end{minipage}
+\end{tcolorbox}
+
+\end{column}
+\separatorcolumn
+
+% ============================================================
+%  RIGHT COLUMN
+% ============================================================
+\begin{column}{\rightcolwidth}
+
+% -- Instrument Testing --
+\begin{tcolorbox}[glassy]
+\sectitle{Instrument Testing}
+
+All ASIO assembly and integration was performed under
+\textbf{\textcolor{accentdark}{Class~100 cleanroom conditions}} at MSU's
+SSEL facility. Calibrated red laser sources illuminated the aperture
+assembly on an optical bench to map the spatial response of each
+photodiode channel and validate the shadow-plate positional sensing
+concept. Differential illumination patterns matched ray-trace model
+predictions, confirming readiness for flight integration.
+
+\vspace{5pt}
+\noindent
+\begin{minipage}[t]{0.32\linewidth}
+  \centering
+  \includegraphics[width=\linewidth, height=3.8cm,
+    keepaspectratio=false, clip]{slide4_img7.jpg}
+  \figcap{\textbf{Fig.~8.} ASIO integration in the Class~100 cleanroom
+    facility at MSU~SSEL.}
+\end{minipage}\hfill%
+\begin{minipage}[t]{0.32\linewidth}
+  \centering
+  \includegraphics[width=\linewidth, height=3.8cm,
+    keepaspectratio=false, clip, angle=270]{slide4_img9.jpg}
+  \figcap{\textbf{Fig.~9.} ASIO on the optical bench during laser aperture
+    characterization.}
+\end{minipage}\hfill%
+\begin{minipage}[t]{0.32\linewidth}
+  \centering
+  \includegraphics[width=\linewidth, height=3.8cm,
+    keepaspectratio=false, clip]{slide4_img8.jpg}
+  \figcap{\textbf{Fig.~10.} Red laser illumination of the shadow-plate
+    aperture validating positional sensing geometry.}
+\end{minipage}
+\end{tcolorbox}
+
+\vspace{0.3cm}
+
+% -- Data Analysis --
+\begin{tcolorbox}[glassy]
+\sectitle{Data Analysis}
+
+ASIO's science pipeline converts multi-band irradiance time series into
+\textbf{\textcolor{accentdark}{temperature}} and
+\textbf{\textcolor{accentdark}{emission measure}} using ratios of SXR and
+HXR fluxes under an isothermal plasma assumption. Quasi-Periodic Pulsations
+are identified via \textbf{\textcolor{accentdark}{continuous wavelet
+decomposition}}, which resolves the time-frequency structure of the
+irradiance signal and isolates statistically significant periodic components
+above global (95\%) and local (99\%) significance thresholds. Synthetic
+signal validation confirms robust QPP recovery from realistic noise
+environments prior to first-light solar observations.
+
+\vspace{5pt}
+\noindent
+\begin{minipage}[t]{0.49\linewidth}
+  \centering
+  \includegraphics[width=\linewidth, height=3cm,
+    keepaspectratio]{slide6_img11.png}
+  \figcap{\textbf{Fig.~11.} Simulated irradiance time series with embedded
+    quasi-periodic structure and additive noise.}
+\end{minipage}\hfill%
+\begin{minipage}[t]{0.49\linewidth}
+  \centering
+  \includegraphics[width=\linewidth, height=3cm,
+    keepaspectratio=false, clip]{slide6_img12.png}
+  \figcap{\textbf{Fig.~12.} Rectified wavelet power spectrum. QPP periods
+    recovered above the 95\% significance contour (red).}
+\end{minipage}
+
+\vspace{4pt}
+\centering
+\includegraphics[width=0.96\linewidth, height=3.8cm,
+  keepaspectratio]{slide6_img13.png}
+\figcap{\textbf{Fig.~13.} Reconstruction from significant wavelet
+  coefficients only (RMSE $= 1.86\times10^{-2}$, 6.7\% of std),
+  demonstrating high-fidelity QPP isolation from background noise.}
+\end{tcolorbox}
+
+\vspace{0.3cm}
+
+% -- Acknowledgments --
+\begin{tcolorbox}[glassy]
+\sectitle{Acknowledgments}
+
+This work is supported by NASA under the MUSE Mission development program.
+Additional support provided by the Montana State University Space Science
+\& Engineering Laboratory (SSEL) and the MSU Department of Physics.
+Presented at the \textbf{MSU Student Research Celebration --- Spring 2026}.
+\end{tcolorbox}
+
+\end{column}
+\separatorcolumn
+\end{columns}
+\end{frame}
+\end{document}

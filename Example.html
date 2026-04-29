@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASIO — Active Solar Irradiance Observer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500;1,600;1,700&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,300;1,8..60,400;1,8..60,500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ══════════════════════════════════════════════
+       PALETTE  —  classical academic poster
+       (matches BUBO reference: orange-bordered boxes
+        on a dark solar field)
+    ══════════════════════════════════════════════ */
+    :root {
+      --orange:           #D9651A;
+      --orange-bright:    #E87820;
+      --orange-deep:      #A8480D;
+      --orange-darker:    #7A3208;
+
+      --cream:            #FFFBF3;
+      --cream-warm:       #FFF6E8;
+      --cream-edge:       #F4E6D0;
+
+      --text:             #1A1108;
+      --text-body:        #221A0E;
+      --text-mid:         #4A3A2C;
+      --text-dim:         #7A6A5C;
+
+      --bg-dark:          #150803;
+      --rule:             rgba(217, 101, 26, 0.35);
+    }
+
+    html, body {
+      background: var(--bg-dark);
+      min-height: 100vh;
+      color: var(--text);
+      font-family: 'Source Serif 4', Georgia, serif;
+    }
+
+    #scale-container {
+      width: 100vw;
+      overflow: hidden;
+    }
+
+    /* ══════════════════════════════════════════════
+       POSTER — 48" × 36" landscape at 50 px/in
+       (2400 × 1800 screen px → prints to exact 48×36)
+    ══════════════════════════════════════════════ */
+    #poster {
+      width:  2400px;
+      height: 1800px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      transform-origin: top center;
+      background: var(--bg-dark);
+      overflow: hidden;
+      box-shadow: 0 8px 60px rgba(0,0,0,0.55);
+    }
+
+    /* Solar background — dark, atmospheric, fully saturated */
+    .bg-img {
+      position: absolute;
+      inset: 0;
+      background: url('background.jpg') center / cover no-repeat;
+      filter: brightness(0.82) saturate(1.18) contrast(1.04);
+      z-index: 0;
+    }
+    /* Vignette + warm wash so boxes pop without killing the imagery */
+    .bg-overlay {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at 50% 55%, transparent 0%, rgba(15,6,2,0.32) 60%, rgba(10,4,1,0.62) 100%),
+        linear-gradient(180deg, rgba(10,4,1,0.22) 0%, rgba(10,4,1,0) 22%, rgba(10,4,1,0) 78%, rgba(10,4,1,0.28) 100%);
+      z-index: 0;
+      pointer-events: none;
+    }
+    /* Subtle film grain — adds tactility, hides JPEG artifacts at print scale */
+    .bg-grain {
+      position: absolute;
+      inset: 0;
+      opacity: 0.055;
+      mix-blend-mode: overlay;
+      z-index: 0;
+      pointer-events: none;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.92' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    }
+
+    #poster > *:not(.bg-img):not(.bg-overlay):not(.bg-grain) { position: relative; z-index: 1; }
+
+    /* ══════════════════════
+       HEADER  —  floating pill
+       (matches the body-box treatment: orange border,
+        rounded corners, sits on the dark solar field)
+    ══════════════════════ */
+    .hdr {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      padding: 14px 36px;
+      margin: 18px 18px 0;
+      background: linear-gradient(180deg, #FFFCF6 0%, #FFF6E8 100%);
+      flex-shrink: 0;
+      height: 196px;
+      position: relative;
+      border: 3.5px solid var(--orange);
+      border-radius: 14px;
+      box-shadow:
+        0 6px 28px rgba(0, 0, 0, 0.42),
+        0 1px 3px rgba(0,0,0,0.22),
+        inset 0 0 0 1px rgba(168, 72, 13, 0.12);
+    }
+
+    .hdr-logos {
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      flex-shrink: 0;
+    }
+    .hdr-logos img {
+      height: 96px;
+      width: auto;
+      object-fit: contain;
+    }
+    .hdr-logos .sm { height: 78px; }
+    .hdr-logos .xs { height: 70px; }
+
+    .hdr-center {
+      flex: 1;
+      text-align: center;
+      padding: 0 8px;
+      min-width: 0;
+    }
+    .poster-title {
+      font-family: 'Crimson Pro', 'Cambria', 'Times New Roman', serif;
+      font-size: 78px;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1.02;
+      letter-spacing: -0.6px;
+      margin-bottom: 8px;
+    }
+    .poster-title .accent {
+      color: var(--orange-deep);
+      font-style: italic;
+      font-weight: 700;
+    }
+    .poster-authors {
+      font-family: 'Crimson Pro', serif;
+      font-size: 19.5px;
+      font-weight: 400;
+      font-style: italic;
+      color: var(--text-body);
+      line-height: 1.42;
+      max-width: 1320px;
+      margin: 0 auto 5px;
+    }
+    .poster-affil {
+      font-family: 'Crimson Pro', serif;
+      font-size: 15.5px;
+      font-weight: 600;
+      color: var(--orange-deep);
+      letter-spacing: 1.6px;
+      text-transform: uppercase;
+    }
+
+    /* ══════════════════════
+       3-COLUMN MAIN
+    ══════════════════════ */
+    .poster-main {
+      flex: 1;
+      display: flex;
+      gap: 18px;
+      padding: 20px 18px 18px;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .col {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow: hidden;
+      min-height: 0;
+    }
+    /* Column widths — total content area = 2400 - 36 padding - 36 gaps = 2328 px */
+    .col-left  { flex: 0 0 762px;  }
+    .col-mid   { flex: 0 0 808px;  }
+    .col-right { flex: 1; }
+
+    /* ══════════════════════
+       BOX  —  signature element
+       Orange-bordered section with orange header bar.
+    ══════════════════════ */
+    .box {
+      border: 3.5px solid var(--orange);
+      border-radius: 11px;
+      overflow: hidden;
+      background: var(--cream);
+      box-shadow:
+        0 6px 28px rgba(0, 0, 0, 0.42),
+        0 1px 3px rgba(0,0,0,0.22),
+        inset 0 0 0 1px rgba(168, 72, 13, 0.12);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .box.fill { flex: 1 1 auto; min-height: 0; }
+
+    .box-header {
+      background: linear-gradient(180deg, var(--orange-bright) 0%, var(--orange) 55%, #C95A14 100%);
+      padding: 9px 22px 10px;
+      flex-shrink: 0;
+      position: relative;
+    }
+    /* Highlight stroke on the bottom edge of the orange header */
+    .box-header::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.18) 50%, transparent 100%);
+    }
+    /* Top inner gloss */
+    .box-header::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1.5px;
+      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.32) 50%, transparent 100%);
+    }
+    .sec-title {
+      font-family: 'Crimson Pro', 'Cambria', serif;
+      font-size: 30px;
+      font-weight: 700;
+      color: #FFFEF8;
+      letter-spacing: 0.3px;
+      line-height: 1.15;
+      text-shadow: 0 1px 1px rgba(80,30,0,0.32);
+      position: relative;
+      z-index: 1;
+    }
+
+    .box-body {
+      padding: 14px 20px 16px;
+      background: var(--cream);
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ══════════════════════
+       TYPOGRAPHY — body text
+    ══════════════════════ */
+    .body {
+      font-family: 'Source Serif 4', Georgia, serif;
+      font-size: 16.5px;
+      color: var(--text-body);
+      line-height: 1.5;
+      text-align: justify;
+      hyphens: auto;
+      -webkit-hyphens: auto;
+    }
+    .body + .body { margin-top: 8px; }
+    .body strong  { font-weight: 700; color: var(--orange-deep); }
+    .body em      { font-style: italic; }
+
+    /* ── Editable affordance ── */
+    .editable { cursor: default; border-radius: 2px; transition: outline .12s, background .12s; }
+    .editable[contenteditable="true"] {
+      cursor: text;
+      outline: 1.5px dashed rgba(217,101,26,.65);
+      background: rgba(217,101,26,.05);
+    }
+
+    /* ══════════════════════
+       FIGURES
+    ══════════════════════ */
+    .fig-row { display: flex; gap: 10px; margin-top: 11px; }
+    .fig-row.col1 { flex-direction: column; }
+    .fig { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .fig img {
+      width: 100%; display: block;
+      border-radius: 3px;
+      flex-shrink: 0;
+      border: 1px solid rgba(0,0,0,0.10);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+    }
+    .fig-cap {
+      font-family: 'Source Serif 4', Georgia, serif;
+      font-size: 12.5px;
+      font-style: italic;
+      color: var(--text-mid);
+      text-align: center;
+      margin-top: 5px;
+      line-height: 1.38;
+      padding: 0 2px;
+    }
+    .fig-cap strong {
+      font-weight: 700;
+      font-style: italic;
+      color: var(--orange-deep);
+    }
+
+    /* ══════════════════════
+       RESEARCH QUESTIONS
+       Inline-numbered to match reference
+    ══════════════════════ */
+    .rq-list { list-style: none; }
+    .rq-item {
+      font-family: 'Source Serif 4', Georgia, serif;
+      font-size: 16.5px;
+      color: var(--text-body);
+      line-height: 1.5;
+      margin-bottom: 9px;
+      text-align: justify;
+      hyphens: auto;
+      -webkit-hyphens: auto;
+    }
+    .rq-item:last-child { margin-bottom: 0; }
+    .rq-num-inline {
+      font-family: 'Crimson Pro', serif;
+      font-weight: 800;
+      color: var(--orange-deep);
+      margin-right: 4px;
+      font-size: 18px;
+    }
+    .rq-item strong { font-weight: 700; color: var(--orange-deep); }
+
+    /* ══════════════════════
+       REFERENCES — bracket numbering
+    ══════════════════════ */
+    .ref-list { list-style: none; }
+    .ref-item {
+      font-family: 'Source Serif 4', Georgia, serif;
+      font-size: 13px;
+      color: var(--text-body);
+      line-height: 1.42;
+      padding-left: 28px;
+      position: relative;
+      margin-bottom: 7px;
+      text-align: justify;
+      hyphens: auto;
+    }
+    .ref-item:last-child { margin-bottom: 0; }
+    .ref-item::before {
+      content: "[" attr(data-n) "]";
+      position: absolute;
+      left: 0; top: 0;
+      color: var(--orange-deep);
+      font-weight: 700;
+      font-family: 'Crimson Pro', serif;
+      font-size: 13.5px;
+    }
+    .ref-item em { font-style: italic; }
+
+    /* ══════════════════════
+       FLOATING UI
+    ══════════════════════ */
+    #editHint {
+      position: fixed; bottom: 16px; right: 16px;
+      background: var(--orange); color: #fff;
+      font-family: 'Crimson Pro', serif;
+      font-size: 13px; font-weight: 600;
+      padding: 8px 18px; border-radius: 30px;
+      z-index: 9999; pointer-events: none;
+      opacity: 0; transition: opacity .5s;
+      letter-spacing: 0.3px;
+    }
+
+    #exportBtn {
+      position: fixed; bottom: 16px; left: 16px;
+      background: var(--orange); color: #fff;
+      font-family: 'Crimson Pro', serif;
+      font-size: 14px; font-weight: 600;
+      padding: 11px 24px; border-radius: 30px;
+      border: none; cursor: pointer;
+      z-index: 9999;
+      box-shadow: 0 3px 14px rgba(0,0,0,0.30);
+      transition: background .18s, transform .1s, opacity .2s;
+      letter-spacing: 0.3px;
+    }
+    #exportBtn:hover:not(:disabled) { background: var(--orange-deep); transform: translateY(-1px); }
+    #exportBtn:active:not(:disabled) { transform: translateY(0); }
+    #exportBtn:disabled { opacity: 0.55; cursor: wait; }
+
+    /* ══════════════════════════════════════════════
+       PRINT  —  maps 2400×1800 px design onto a true
+       48"×36" page. At CSS 96 px/in, 48 in = 4608 px,
+       so we scale the poster by 4608 / 2400 = 1.92.
+    ══════════════════════════════════════════════ */
+    @media print {
+      html, body {
+        background: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 48in;
+        height: 36in;
+      }
+      #scale-container {
+        width: 2400px !important;
+        height: 1800px !important;
+        overflow: visible !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+      #poster {
+        transform: scale(1.92) !important;
+        transform-origin: top left !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+      }
+      /* Ensure backgrounds, gradients, and tinted boxes all render */
+      #poster, #poster *, .bg-img, .bg-overlay, .bg-grain, .box, .box-header, .hdr {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      #editHint, #exportBtn { display: none !important; }
+      @page { size: 48in 36in; margin: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="editHint">Double-click any text to edit</div>
+<button id="exportBtn">Save as PDF</button>
+
+<div id="scale-container">
+<div id="poster">
+
+  <div class="bg-img"></div>
+  <div class="bg-overlay"></div>
+  <div class="bg-grain"></div>
+
+  <!-- ██████████████████████████████
+       HEADER
+  ██████████████████████████████ -->
+  <header class="hdr">
+    <div class="hdr-logos">
+      <img src="msulogo.png"   alt="Montana State University">
+      <img src="ssel_logo.svg" alt="SSEL" class="sm">
+    </div>
+
+    <div class="hdr-center">
+      <h1 class="poster-title editable" contenteditable="false" data-eid="poster-title">
+        Active Solar Irradiance Observer <span class="accent">(ASIO)</span>
+      </h1>
+      <p class="poster-authors editable" contenteditable="false" data-eid="poster-authors">
+        Evan Williams &middot; Sarah Pawlowski &middot; Chris Entzel &middot; Charles Kankelborg &middot; Camrynn Wells &middot; Caleb Pascual &middot; Reed Lando &middot; Jake Davis &middot; Chase Bronson &middot; Tyler Holliday &middot; Emily Schwartz &middot; Aidan Rasmussen &middot; Connor Parrott &middot; Larry Springer &middot; Ian Garcia &middot; Jacob Weber &middot; Finnegan Davidson &middot; Sophia Daly
+      </p>
+      <p class="poster-affil editable" contenteditable="false" data-eid="poster-affil">
+        Montana State University &mdash; Department of Physics &mdash; Space Science &amp; Engineering Laboratory
+      </p>
+    </div>
+
+    <div class="hdr-logos">
+      <img src="nasalogo.png" alt="NASA">
+      <img src="muselogo.png" alt="MUSE Mission" class="sm">
+      <img src="asiologo.png" alt="ASIO"          class="xs">
+    </div>
+  </header>
+
+  <!-- ██████████████████████████████
+       3-COLUMN BODY
+  ██████████████████████████████ -->
+  <main class="poster-main">
+
+    <!-- ═══════════════════════════
+         LEFT
+    ═══════════════════════════ -->
+    <div class="col col-left">
+
+      <!-- Introduction -->
+      <section class="box">
+        <div class="box-header">
+          <h2 class="sec-title editable" contenteditable="false" data-eid="sec-intro">Introduction</h2>
+        </div>
+        <div class="box-body">
+          <p class="body editable" contenteditable="false" data-eid="intro-p1">
+            Solar flares are among the most energetic events in our solar system, releasing enormous quantities of energy across the electromagnetic spectrum in timescales ranging from milliseconds to hours. The underlying physical mechanisms — particularly sub-second oscillatory phenomena known as <strong>Quasi-Periodic Pulsations (QPPs)</strong> — remain poorly understood because existing solar monitors lack the temporal resolution and multi-band simultaneity needed to resolve them.
+          </p>
+          <p class="body editable" contenteditable="false" data-eid="intro-p2">
+            QPPs have been detected in microwave, hard X-ray, and EUV emissions, but the temporal relationships <em>between</em> these bands at sub-second cadence are largely unconstrained. The spatial dynamics of the soft X-ray source during a flare — and the thermal evolution of the flare late phase on centi-second timescales — are similarly unexplored observational frontiers.
+          </p>
+          <p class="body editable" contenteditable="false" data-eid="intro-p3">
+            The <strong>Active Solar Irradiance Observer (ASIO)</strong> is designed specifically to fill these gaps. Scheduled for launch in 2027 aboard NASA's <strong>MUSE (MUlti-slit Solar Explorer)</strong> spacecraft, ASIO delivers simultaneous high-cadence irradiance measurements in the SXR and HXR bands with integrated coarse source localization — a capability not available in any existing solar instrument.
+          </p>
+        </div>
+      </section>
+
+      <!-- Research Objectives -->
+      <section class="box">
+        <div class="box-header">
+          <h2 class="sec-title editable" contenteditable="false" data-eid="sec-rq">Research Objectives</h2>
+        </div>
+        <div class="box-body">
+          <ol class="rq-list">
+            <li class="rq-item editable" contenteditable="false" data-eid="rq-1">
+              <span class="rq-num-inline">1.</span> Do sub-second <strong>Quasi-Periodic Pulsations (QPPs)</strong> exist simultaneously across the SXR, HXR, and EUV energy bands? Are there measurable temporal offsets between bands that reveal the causal sequence of energy release?
+            </li>
+            <li class="rq-item editable" contenteditable="false" data-eid="rq-2">
+              <span class="rq-num-inline">2.</span> Are <strong>soft X-ray sources</strong> during solar flares spatially stationary, or do they exhibit rapid motion across the solar disk? If dynamic, over what spatial extent and on what timescale?
+            </li>
+            <li class="rq-item editable" contenteditable="false" data-eid="rq-3">
+              <span class="rq-num-inline">3.</span> How does the <strong>thermal structure</strong> of a solar flare evolve during its late phase on centi-second timescales — and what temperature and emission measure trajectories emerge as the plasma cools?
+            </li>
+          </ol>
+
+          <div class="fig-row" style="margin-top: 12px;">
+            <div class="fig">
+              <img src="slide2_img1.jpg" alt="EUV flare"
+                   style="height:228px; object-fit:cover;">
+              <p class="fig-cap editable" contenteditable="false" data-eid="fig-1">
+                <strong>Fig. 1.</strong> EUV observation of a solar flare. Scale markers indicate the source spans 50–190 Mm across the solar disk.
+              </p>
+            </div>
+            <div class="fig">
+              <img src="slide2_img2.png" alt="QPP period-duration"
+                   style="height:228px; object-fit:contain; background:#FFFCF6;">
+              <p class="fig-cap editable" contenteditable="false" data-eid="fig-2">
+                <strong>Fig. 2.</strong> QPP classification by period and duration (Tan et al. 2010). ASIO targets the fast and slow VSP regimes at sub-second cadence.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div><!-- /col-left -->
+
+    <!-- ═══════════════════════════
+         MIDDLE
+    ═══════════════════════════ -->
+    <div class="col col-mid">
+
+      <!-- The Instrument -->
+      <section class="box">
+        <div class="box-header">
+          <h2 class="sec-title editable" contenteditable="false" data-eid="sec-instrument">The Instrument</h2>
+        </div>
+        <div class="box-body">
+          <p class="body editable" contenteditable="false" data-eid="instrument-p1">
+            ASIO is a compact photometer engineered as a hosted payload on the <strong>NASA MUSE spacecraft</strong>, which will occupy a Sun-synchronous low Earth orbit at ~667 km. The instrument leverages MUSE's spacecraft bus for power, thermal control, and telemetry while providing a high-cadence X-ray measurement channel fully independent of MUSE's primary UV spectrograph.
+          </p>
+          <p class="body editable" contenteditable="false" data-eid="instrument-p2">
+            The flight chassis is precision-machined from aluminum with multiple aperture channels, each coupling solar X-rays to dedicated solid-state photodiode detectors. A <strong>shadow plate</strong> upstream of the SXR detector array provides coarse source localization without imaging optics — differential shadow patterns across detector segments encode the angular position of the X-ray source on the solar disk. An adjustable mounting ring permits fine alignment of the instrument axis after spacecraft integration.
+          </p>
+
+          <div class="fig-row" style="margin-top:11px;">
+            <div class="fig" style="flex:1.1;">
+              <img src="slide3_img3.jpg" alt="ASIO flight instrument"
+                   style="height:158px; object-fit:cover;">
+              <p class="fig-cap editable" contenteditable="false" data-eid="fig-3">
+                <strong>Fig. 3.</strong> ASIO flight instrument — precision-machined aluminum housing with multiple X-ray aperture channels and solid-state photodiode detectors.
+              </p>
+            </div>
+            <div class="fig" style="flex:0.9;">
+              <img src="slide3_img4.png" alt="MUSE spacecraft"
+                   style="height:158px; object-fit:contain; background:#FFFCF6;">
+              <p class="fig-cap editable" contenteditable="false" data-eid="fig-4">
+                <strong>Fig. 4.</strong> MUSE spacecraft CAD rendering. ASIO flies as a hosted payload on the main bus, launching in 2027.
+              </p>
+            </div>
+          </div>
+
+          <div class="fig-row" style="margin-top:9px;">
+            <div class="fig">
+              <img src="slide3_img5.png" alt="ASIO CAD"
+                   style="height:128px; object-fit:contain; background:#FFFCF6;">
+              <p class="fig-cap editable" contenteditable="false" data-eid="fig-5">
+                <strong>Fig. 5.</strong> ASIO structural CAD model showing aperture geometry and detector mounting.
+              </p>
+            </div>
+            <div class="fig">
+              <img src="slide3_img6.png" alt="Alignment ring"
+                   style="height:128px; object-fit:contain; background:#FFFCF6;">
+              <p class="fig-cap editable" contenteditable="false" data-eid="fig-6">
+                <strong>Fig. 6.</strong> Adjustable positioning ring enabling precise instrument alignment after spacecraft integration.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Alignment Procedure -->
+      <section class="box">
+        <div class="box-header">
+          <h2 class="sec-title editable" contenteditable="false" data-eid="sec-alignment">Alignment Procedure</h2>
+        </div>
+        <div class="box-body">
+          <p class="body editable" contenteditable="false" data-eid="alignment-p">
+            The shadow plate upstream of the SXR photodiode array encodes the angular position of a solar X-ray source as a differential shadow pattern. Comparing flux ratios between detector segments yields a coarse source centroid without imaging optics. Post-integration alignment is characterized with an automated edge-detection pipeline: exterior and interior aperture corners are located to sub-pixel accuracy, compared against the optical model, and the adjustable ring is locked once verified.
+          </p>
+
+          <div class="fig-row" style="margin-top:11px;">
+            <div class="fig" style="flex:1.3;">
+              <img src="align-tool.png" alt="Alignment software GUI"
+                   style="height:248px; object-fit:contain; background:#FFFCF6;">
+              <p class="fig-cap editable" contenteditable="false" data-eid="fig-align-gui">
+                <strong>Fig. 7.</strong> Custom alignment characterization GUI. The operator selects X/Y reference regions; the pipeline computes aperture-edge centroids and evaluates deviations against a ±0.00787 in tolerance.
+              </p>
+            </div>
+            <div class="fig" style="flex:1;">
+              <img src="slide5_img10.png" alt="Edge-detection output"
+                   style="height:248px; object-fit:contain; background:#FFFCF6;">
+              <p class="fig-cap editable" contenteditable="false" data-eid="fig-7">
+                <strong>Fig. 8.</strong> Edge-detection output — sub-pixel localization of interior and exterior aperture corners.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div><!-- /col-mid -->
+
+    <!-- ═══════════════════════════
+         RIGHT
+    ═══════════════════════════ -->
+    <div class="col col-right">
+
+      <!-- Instrument Testing -->
+      <section class="box">
+        <div class="box-header">
+          <h2 class="sec-title editable" contenteditable="false" data-eid="sec-testing">Instrument Testing</h2>
+        </div>
+        <div class="box-body">
+          <p class="body editable" contenteditable="false" data-eid="testing-p">
+            All ASIO assembly and integration was performed under <strong>Class 100 cleanroom conditions</strong> at MSU's SSEL facility. Calibrated red laser sources illuminated the aperture assembly on an optical bench to map the spatial response of each photodiode channel and validate the shadow-plate positional sensing concept. Differential illumination patterns matched ray-trace model predictions, confirming readiness for flight integration.
+          </p>
+
+          <div class="fig-row" style="margin-top:10px;">
+            <div class="fig">
+              <img src="slide4_img7.jpg" alt="Cleanroom integration"
+                   style="height:135px; object-fit:cover;">
+              <p class="fig-cap editable" contenteditable="false" data-eid="fig-8">
+                <strong>Fig. 9.</strong> ASIO integration in the Class 100 cleanroom facility at MSU SSEL.
+              </p>
+            </div>
+            <div class="fig">
+              <!-- Rotated 90° in camera -->
+              <div style="height:135px; overflow:hidden; border-radius:3px; position:relative; background:#FFFCF6; border:1px solid rgba(0,0,0,0.10); box-shadow:0 1px 4px rgba(0,0,0,0.10);">
+                <img src="slide4_img9.jpg" alt="Instrument on optical table"
+                     style="position:absolute; top:50%; left:50%;
+                            transform:translate(-50%,-50%) rotate(-90deg);
+                            height:100%; width:auto; max-width:none; border:0; box-shadow:none;">
+              </div>
+              <p class="fig-cap editable" contenteditable="false" data-eid="fig-9">
+                <strong>Fig. 10.</strong> ASIO on the optical bench during laser aperture characterization.
+              </p>
+            </div>
+            <div class="fig">
+              <img src="slide4_img8.jpg" alt="Laser aperture test"
+                   style="height:135px; object-fit:cover;">
+              <p class="fig-cap editable" contenteditable="false" data-eid="fig-10">
+                <strong>Fig. 11.</strong> Red laser illumination of the shadow-plate aperture validating positional sensing geometry.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Data Analysis -->
+      <section class="box">
+        <div class="box-header">
+          <h2 class="sec-title editable" contenteditable="false" data-eid="sec-analysis">Data Analysis</h2>
+        </div>
+        <div class="box-body">
+          <p class="body editable" contenteditable="false" data-eid="analysis-p">
+            ASIO's science pipeline converts multi-band irradiance time series into <strong>temperature</strong> and <strong>emission measure</strong> using ratios of SXR and HXR fluxes under an isothermal plasma assumption. Quasi-Periodic Pulsations are identified via <strong>continuous wavelet decomposition</strong>, which resolves the time-frequency structure of the irradiance signal and isolates statistically significant periodic components above global (95%) and local (99%) significance thresholds. Synthetic signal validation — shown below — confirms robust QPP recovery from realistic noise environments prior to first-light solar observations.
+          </p>
+
+          <div class="fig-row" style="margin-top:10px;">
+            <div class="fig">
+              <img src="slide6_img11.png" alt="Simulated signal"
+                   style="height:158px; object-fit:contain; background:#FFFCF6; width:100%;">
+              <p class="fig-cap editable" contenteditable="false" data-eid="fig-11">
+                <strong>Fig. 12.</strong> Simulated irradiance time series with embedded quasi-periodic structure and additive noise — the pipeline validation input.
+              </p>
+            </div>
+            <div class="fig">
+              <img src="slide6_img12.png" alt="Wavelet spectrum"
+                   style="height:158px; width:100%; object-fit:cover; object-position:30% 50%; border-radius:3px;">
+              <p class="fig-cap editable" contenteditable="false" data-eid="fig-12">
+                <strong>Fig. 13.</strong> Rectified wavelet power spectrum. QPP periods are clearly recovered above the 95% global significance contour (red).
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Acknowledgments -->
+      <section class="box">
+        <div class="box-header">
+          <h2 class="sec-title editable" contenteditable="false" data-eid="sec-ack">Acknowledgments</h2>
+        </div>
+        <div class="box-body">
+          <p class="body editable" contenteditable="false" data-eid="ack-p">
+            This work is supported by NASA under the MUSE Mission development program. Additional support provided by the Montana State University Space Science &amp; Engineering Laboratory (SSEL) and the MSU Department of Physics. Presented at the <strong>MSU Student Research Celebration — Spring 2026</strong>.
+          </p>
+        </div>
+      </section>
+
+      <!-- References -->
+      <section class="box">
+        <div class="box-header">
+          <h2 class="sec-title editable" contenteditable="false" data-eid="sec-refs">References</h2>
+        </div>
+        <div class="box-body">
+          <ol class="ref-list">
+            <li class="ref-item editable" contenteditable="false" data-n="1" data-eid="ref-1">
+              Ning, H., Chen, Y., Wu, Z., Su, Y., Tian, H., Li, G., Du, G., &amp; Song, H. (2018). Two-stage energy release process of a confined flare with double HXR peaks. <em>The Astrophysical Journal</em>, <em>854</em>(2), 178. https://doi.org/10.3847/1538-4357/aaaa69
+            </li>
+            <li class="ref-item editable" contenteditable="false" data-n="2" data-eid="ref-2">
+              De Pontieu, B., Cheung, M., &amp; MUSE team. (2022). The MUlti-slit Solar Explorer (MUSE). <em>Bulletin of the AAS</em>, <em>54</em>(7). https://baas.aas.org/pub/2022n7i408p03
+            </li>
+            <li class="ref-item editable" contenteditable="false" data-n="3" data-eid="ref-3">
+              Tan, B., Zhang, Y., Tan, C., &amp; Liu, Y. (2010). Microwave quasi-periodic pulsations in multi-timescales associated with a solar flare/CME event. <em>The Astrophysical Journal</em>, <em>723</em>(1), 25&ndash;39. https://doi.org/10.1088/0004-637x/723/1/25
+            </li>
+          </ol>
+        </div>
+      </section>
+
+    </div><!-- /col-right -->
+
+  </main>
+
+</div><!-- /#poster -->
+</div><!-- /#scale-container -->
+
+<script>
+  /* ─── Scale poster to viewport WIDTH (always landscape) ─── */
+  const PW = 2400, PH = 1800;
+
+  function scalePoster() {
+    const vw = window.innerWidth;
+    const s  = vw / PW;
+
+    const poster    = document.getElementById('poster');
+    const container = document.getElementById('scale-container');
+
+    poster.style.transform       = `scale(${s})`;
+    poster.style.transformOrigin = 'top left';
+    poster.style.marginBottom    = (PH * s - PH) + 'px';
+
+    container.style.height = (PH * s) + 'px';
+    document.body.style.minHeight = (PH * s) + 'px';
+  }
+
+  window.addEventListener('resize', scalePoster);
+  scalePoster();
+
+  /* ─── Double-click to edit + localStorage persistence ─── */
+  const STORE_KEY = 'asio-poster-edits-v4';
+
+  function saveEdits() {
+    const edits = {};
+    document.querySelectorAll('.editable[data-eid]').forEach(el => {
+      edits[el.dataset.eid] = el.innerHTML;
+    });
+    localStorage.setItem(STORE_KEY, JSON.stringify(edits));
+  }
+
+  function loadEdits() {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return;
+    let edits;
+    try { edits = JSON.parse(raw); } catch(e) { return; }
+    document.querySelectorAll('.editable[data-eid]').forEach(el => {
+      if (edits[el.dataset.eid] !== undefined) {
+        el.innerHTML = edits[el.dataset.eid];
+      }
+    });
+  }
+
+  document.querySelectorAll('.editable').forEach((el, i) => {
+    if (!el.dataset.eid) el.dataset.eid = i;
+  });
+
+  loadEdits();
+
+  document.querySelectorAll('.editable').forEach(el => {
+    el.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      el.contentEditable = 'true';
+      el.focus();
+    });
+    el.addEventListener('blur', () => {
+      el.contentEditable = 'false';
+      saveEdits();
+    });
+    el.addEventListener('input', () => { saveEdits(); });
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { el.contentEditable = 'false'; el.blur(); }
+    });
+  });
+
+  window.addEventListener('beforeunload', saveEdits);
+
+  const hint = document.getElementById('editHint');
+  setTimeout(() => hint.style.opacity = '1', 900);
+  setTimeout(() => hint.style.opacity = '0', 4500);
+</script>
+
+<!-- PDF export libraries (used only by the in-page "Save as PDF" fallback;
+     export.sh provides higher-quality vector PDFs via headless Chrome) -->
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+<script>
+  /* ─── In-page raster PDF export (fallback) ─── */
+  const PDF_W_IN = 48;
+  const PDF_H_IN = 36;
+
+  document.getElementById('exportBtn').addEventListener('click', async function () {
+    const btn = this;
+    btn.disabled = true;
+    btn.textContent = 'Rendering… (this takes ~30 s)';
+
+    const poster    = document.getElementById('poster');
+    const container = document.getElementById('scale-container');
+
+    btn.style.display = 'none';
+    hint.style.opacity = '0';
+
+    const savedTransform       = poster.style.transform;
+    const savedTransformOrigin = poster.style.transformOrigin;
+    const savedMarginBottom    = poster.style.marginBottom;
+    const savedContainerH      = container.style.height;
+    const savedBodyMinH        = document.body.style.minHeight;
+
+    poster.style.transform       = 'none';
+    poster.style.transformOrigin = 'top left';
+    poster.style.marginBottom    = '0';
+    container.style.height       = PH + 'px';
+    container.style.overflow     = 'visible';
+    document.body.style.minHeight = PH + 'px';
+    document.body.style.overflow  = 'hidden';
+
+    await new Promise(r => setTimeout(r, 200));
+    await document.fonts.ready;
+
+    try {
+      const canvas = await html2canvas(poster, {
+        scale:       2,
+        useCORS:     true,
+        allowTaint:  true,
+        logging:     false,
+        width:       PW,
+        height:      PH,
+        windowWidth: PW,
+        windowHeight: PH,
+      });
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit:        'in',
+        format:      [PDF_W_IN, PDF_H_IN],
+        compress:    true,
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+      pdf.addImage(imgData, 'JPEG', 0, 0, PDF_W_IN, PDF_H_IN);
+      pdf.save('ASIO-poster.pdf');
+
+    } catch (err) {
+      alert('Export failed: ' + err.message + '\n\nMake sure you are connected to the internet (needed to load the export libraries).');
+      console.error(err);
+    } finally {
+      poster.style.transform        = savedTransform;
+      poster.style.transformOrigin  = savedTransformOrigin;
+      poster.style.marginBottom     = savedMarginBottom;
+      container.style.height        = savedContainerH;
+      container.style.overflow      = 'hidden';
+      document.body.style.minHeight = savedBodyMinH;
+      document.body.style.overflow  = '';
+      scalePoster();
+
+      btn.style.display = '';
+      btn.disabled      = false;
+      btn.textContent   = 'Save as PDF';
+    }
+  });
+</script>
+</body>
+</html>
